@@ -122,7 +122,7 @@
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 const ini=n=>esc(n.trim().slice(0,2).toUpperCase()||'??');
-const fmt=d=>{const t=new Date(d);return t.toLocaleDateString('de-DE')+' · '+t.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});};
+const fmt=d=>{const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return'gerade eben';if(s<3600){const m=Math.floor(s/60);return`vor ${m} Min.`;}if(s<86400){const h=Math.floor(s/3600);return`vor ${h} Std.`;}if(s<2592000){const dy=Math.floor(s/86400);return`vor ${dy} Tag${dy===1?'':'en'}`;}if(s<31536000){const mo=Math.floor(s/2592000);return`vor ${mo} Monat${mo===1?'':'en'}`;}const y=Math.floor(s/31536000);return`vor ${y} Jahr${y===1?'':'en'}`;};
 const thumb='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v11M2 14v5a2 2 0 0 0 2 2h13.5a2 2 0 0 0 2-1.6l1.3-7A1.5 1.5 0 0 0 20.3 10H14V5a2 2 0 0 0-2-2l-3 7H2z"/></svg>';
 const arrow='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 9V5l-7 7 7 7v-4c5 0 8 1.5 10 5 0-7-3-11-10-11z"/></svg>';
 
