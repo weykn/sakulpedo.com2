@@ -17,6 +17,11 @@ $likesData = file_exists($likesFile)
 foreach ($comments as &$comment) {
     $id = $comment['id'];
     $comment['userLiked'] = isset($likesData[$id]) && in_array($userIp, $likesData[$id]);
+    foreach ($comment['replies'] ?? [] as &$reply) {
+        $rid = $reply['id'];
+        $reply['userLiked'] = isset($likesData[$rid]) && in_array($userIp, $likesData[$rid]);
+    }
+    unset($reply);
 }
 
 echo json_encode(array_values($comments));

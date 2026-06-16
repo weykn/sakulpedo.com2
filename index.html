@@ -133,7 +133,7 @@ const toast=(m,e)=>{const t=$('#toast');t.textContent=m;t.className='toast show'
 const liked=()=>JSON.parse(localStorage.getItem('likedComments')||'{}');
 const isLiked=id=>liked()[id]===true;
 const setLiked=(id,val)=>{const l=liked();if(val)l[id]=true;else delete l[id];localStorage.setItem('likedComments',JSON.stringify(l));};
-const syncLikes=comments=>{const l={};comments.forEach(c=>{if(c.userLiked)l[c.id]=true;});localStorage.setItem('likedComments',JSON.stringify(l));};
+const syncLikes=comments=>{const l={};comments.forEach(c=>{if(c.userLiked)l[c.id]=true;(c.replies||[]).forEach(r=>{if(r.userLiked)l[r.id]=true;});});localStorage.setItem('likedComments',JSON.stringify(l));};
 
 /* markdown → html (line based, keine leeren Absätze) */
 const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
@@ -169,7 +169,7 @@ async function loadContent(){
   buildToc();
 }
 
-const replyHTML=r=>`<div class="reply" data-id="${r.id}"><div class="top" style="margin-bottom:3px"><div class="ava" style="width:26px;height:26px;font-size:11px">${ini(r.name)}</div><div><div class="who">${esc(r.name)}</div><div class="when">${fmt(r.date)}</div></div></div><div class="text">${esc(r.content)}</div></div>`;
+const replyHTML=(r,parentId)=>`<div class="reply" data-id="${r.id}"><div class="top" style="margin-bottom:3px"><div class="ava" style="width:26px;height:26px;font-size:11px">${ini(r.name)}</div><div><div class="who">${esc(r.name)}</div><div class="when">${fmt(r.date)}</div></div></div><div class="text">${esc(r.content)}</div><div class="acts"><button class="act like ${isLiked(r.id)?'on':''}" data-id="${r.id}">${thumb}<span class="n">${r.likes||0}</span></button><button class="act reply-btn" data-id="${r.id}">${arrow}Antworten</button></div><div class="rb" id="rb-${r.id}"><div class="field"><label>Name</label><input class="r-name"></div><div class="field"><label>Antwort</label><textarea class="r-text"></textarea></div><button class="btn send" data-id="${parentId}" data-rb="${r.id}">Antwort absenden</button></div></div>`;
 
 const cmtHTML=c=>`<div class="cmt" data-id="${c.id}">
   <div class="top"><div class="ava">${ini(c.name)}</div><div><div class="who">${esc(c.name)}</div><div class="when">${fmt(c.date)}</div></div></div>
@@ -181,10 +181,9 @@ const cmtHTML=c=>`<div class="cmt" data-id="${c.id}">
   <div class="rb" id="rb-${c.id}">
     <div class="field"><label>Name</label><input class="r-name"></div>
     <div class="field"><label>Antwort</label><textarea class="r-text"></textarea></div>
-    <button class="btn send" data-id="${c.id}">Antwort absenden</button>
-    <div class="hint">Maximal 5 Antworten pro Stunde</div>
+    <button class="btn send" data-id="${c.id}" data-rb="${c.id}">Antwort absenden</button>
   </div>
-  <div class="replies">${(c.replies||[]).map(replyHTML).join('')}</div>
+  <div class="replies">${(c.replies||[]).map(r=>replyHTML(r,c.id)).join('')}</div>
 </div>`;
 
 async function loadComments(){
@@ -212,11 +211,11 @@ async function doLike(btn){
 }
 
 async function doReply(btn){
-  const id=btn.dataset.id, box=$('#rb-'+id);
+  const id=btn.dataset.id, rbId=btn.dataset.rb, box=$('#rb-'+rbId);
   const name=box.querySelector('.r-name').value.trim(), content=box.querySelector('.r-text').value.trim();
   if(!content)return toast('Bitte fülle alle Felder aus',1);
   try{const r=await(await fetch('api/reply.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commentId:id,name,content})})).json();
-    if(r.success){$(`.cmt[data-id="${id}"] .replies`).insertAdjacentHTML('beforeend',replyHTML(r.reply));box.classList.remove('open');box.querySelector('.r-name').value='';box.querySelector('.r-text').value='';toast('Antwort erfolgreich hinzugefügt');}
+    if(r.success){$(`.cmt[data-id="${id}"] .replies`).insertAdjacentHTML('beforeend',replyHTML(r.reply,id));box.classList.remove('open');box.querySelector('.r-name').value='';box.querySelector('.r-text').value='';toast('Antwort erfolgreich hinzugefügt');}
     else toast(r.message||'Fehler beim Hinzufügen der Antwort',1);
   }catch(e){toast('Fehler beim Hinzufügen der Antwort',1);}
 }

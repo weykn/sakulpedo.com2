@@ -55,9 +55,10 @@ foreach ($comments as &$comment) {
         // Neue Antwort erstellen
         $newReply = [
             'id' => uniqid(),
-            'name' => htmlspecialchars(!empty($data['name']) ? $data['name'] : 'anonym'),
-            'content' => htmlspecialchars($data['content']),
-            'date' => date('c')
+            'name' => !empty($data['name']) ? $data['name'] : 'anonym',
+            'content' => $data['content'],
+            'date' => date('c'),
+            'likes' => 0
         ];
         
         // Antworten initialisieren, falls nicht vorhanden

@@ -50,8 +50,8 @@ $comments = json_decode(file_get_contents($commentsFile), true);
 // Neuen Kommentar erstellen
 $newComment = [
     'id' => uniqid(),
-    'name' => htmlspecialchars(!empty($data['name']) ? $data['name'] : 'anonym'),
-    'content' => htmlspecialchars($data['content']),
+    'name' => !empty($data['name']) ? $data['name'] : 'anonym',
+    'content' => $data['content'],
     'date' => date('c'),
     'likes' => 0,
     'liked' => false,

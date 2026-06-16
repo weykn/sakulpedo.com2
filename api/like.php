@@ -28,19 +28,37 @@ $found    = false;
 $newLikes = 0;
 
 foreach ($comments as &$comment) {
-    if ($comment['id'] !== $commentId) continue;
-    $found = true;
-    if ($alreadyLiked) {
-        $comment['likes'] = max(0, ($comment['likes'] ?? 0) - 1);
-        $likesData[$commentId] = array_values(
-            array_filter($likesData[$commentId], fn($ip) => $ip !== $userIp)
-        );
-    } else {
-        $comment['likes'] = ($comment['likes'] ?? 0) + 1;
-        $likesData[$commentId][] = $userIp;
+    if ($comment['id'] === $commentId) {
+        $found = true;
+        if ($alreadyLiked) {
+            $comment['likes'] = max(0, ($comment['likes'] ?? 0) - 1);
+            $likesData[$commentId] = array_values(
+                array_filter($likesData[$commentId], fn($ip) => $ip !== $userIp)
+            );
+        } else {
+            $comment['likes'] = ($comment['likes'] ?? 0) + 1;
+            $likesData[$commentId][] = $userIp;
+        }
+        $newLikes = $comment['likes'];
+        break;
     }
-    $newLikes = $comment['likes'];
-    break;
+    foreach ($comment['replies'] ?? [] as &$reply) {
+        if ($reply['id'] === $commentId) {
+            $found = true;
+            if ($alreadyLiked) {
+                $reply['likes'] = max(0, ($reply['likes'] ?? 0) - 1);
+                $likesData[$commentId] = array_values(
+                    array_filter($likesData[$commentId], fn($ip) => $ip !== $userIp)
+                );
+            } else {
+                $reply['likes'] = ($reply['likes'] ?? 0) + 1;
+                $likesData[$commentId][] = $userIp;
+            }
+            $newLikes = $reply['likes'];
+            break 2;
+        }
+    }
+    unset($reply);
 }
 
 if (!$found) {
