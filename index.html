@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SakulPedo · Dokumentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#E9E7E0;--paper:#FCFBF9;--ink:#16140F;--muted:#7C7468;
+    --accent:#1F3CC7;--accent-soft:#E4E7FA;--flag:#B23A2E;--line:#D7D3C9;
+    --mono:ui-monospace,Menlo,monospace;--disp:"Bricolage Grotesque",system-ui,sans-serif;--body:"Inter",system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--body);color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 24px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .eyebrow::after{content:"";flex:1;height:1px;background:var(--line)}
+  .btn{font:600 14px var(--body);color:#fff;background:var(--ink);border:none;border-radius:10px;padding:11px 18px;cursor:pointer;transition:opacity .2s,transform .1s}
+  .btn:hover{opacity:.9}.btn:active{transform:translateY(1px)}.btn.accent{background:var(--accent)}
+
+  /* header */
+  header{border-bottom:2px solid var(--ink)}
+  .bar{display:flex;align-items:center;gap:12px;height:74px}
+  .logo{width:14px;height:14px;background:var(--accent);transform:rotate(45deg)}
+  .mark{font-family:var(--disp);font-weight:800;font-size:26px;letter-spacing:-.03em}
+  .mark b{color:var(--accent);font-weight:800}
+  .tag{margin-left:auto;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+
+  /* layout */
+  main{padding:42px 0 90px}
+  .grid{display:grid;grid-template-columns:200px minmax(0,1fr) 330px;gap:34px;align-items:start}
+  .col{position:sticky;top:24px}
+
+  /* toc */
+  #toc a{display:block;font-size:13px;color:var(--muted);text-decoration:none;padding:6px 0 6px 14px;border-left:2px solid var(--line);line-height:1.35;transition:color .15s,border-color .15s}
+  #toc a:hover{color:var(--ink)}
+  #toc a.h3{padding-left:26px;font-size:12px}
+  #toc a.on{color:var(--accent);border-color:var(--accent);font-weight:600}
+  #toc .empty{font-size:13px;color:var(--muted)}
+
+  /* doc */
+  .doc h1{font-family:var(--disp);font-weight:800;font-size:clamp(40px,7vw,62px);line-height:.98;letter-spacing:-.035em;margin-bottom:8px}
+  .doc>.rule{height:3px;width:64px;background:var(--accent);margin-bottom:28px}
+  #content h2{font-family:var(--disp);font-weight:700;font-size:25px;letter-spacing:-.015em;margin:30px 0 6px;scroll-margin-top:90px}
+  #content h3{font-family:var(--disp);font-weight:600;font-size:18px;margin:20px 0 4px;scroll-margin-top:90px}
+  #content h2:first-child,#content h3:first-child{margin-top:0}
+  #content p{margin:0 0 12px}#content p:last-child{margin-bottom:0}
+  #content ul{margin:0 0 12px 20px}#content li{margin-bottom:5px}
+  #content strong{font-weight:600}
+
+  /* comments */
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .ph{font-family:var(--disp);font-weight:700;font-size:21px;letter-spacing:-.01em;display:flex;align-items:baseline;gap:8px;margin-bottom:14px}
+  .ph small{font-family:var(--mono);font-size:12px;color:var(--muted);font-weight:400}
+  label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:var(--muted)}
+  input,textarea{width:100%;font:14px var(--body);color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px 12px;transition:border-color .15s,box-shadow .15s}
+  input:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  textarea{resize:vertical;min-height:78px}
+  .field{margin-bottom:11px}
+  .list{margin-top:18px;max-height:60vh;overflow:auto;padding-right:4px}
+  .cmt{padding:15px 0;border-top:1px solid var(--line)}
+  .top{display:flex;gap:10px;margin-bottom:7px}
+  .ava{flex:none;width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent);font:700 14px var(--disp);display:grid;place-items:center}
+  .who{font-weight:600;font-size:14px;line-height:1.2}.when{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .text{font-size:14px;margin:0 0 9px;white-space:pre-wrap}
+  .acts{display:flex;gap:18px}
+  .act{display:inline-flex;align-items:center;gap:6px;font:13px var(--body);color:var(--muted);background:none;border:none;cursor:pointer;padding:0;transition:color .2s}
+  .act:hover{color:var(--accent)}.act svg{width:15px;height:15px}.act.on{color:var(--accent)}.act.on svg{fill:var(--accent)}
+  .rb{margin-top:11px;padding:13px;background:#fff;border:1px solid var(--line);border-radius:11px;display:none}.rb.open{display:block}
+  .hint{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:7px}
+  .reply{margin:11px 0 0 14px;padding:11px 13px;background:#fff;border-left:2px solid var(--accent);border-radius:0 9px 9px 0}
+  .empty{color:var(--muted);font-size:14px;padding:12px 0}
+
+  /* toast */
+  .toast{position:fixed;right:20px;bottom:20px;max-width:320px;padding:13px 17px;border-radius:11px;background:var(--ink);color:#fff;font:500 14px var(--body);box-shadow:0 10px 30px rgba(0,0,0,.18);transform:translateY(150%);opacity:0;transition:.3s;z-index:200}
+  .toast.show{transform:translateY(0);opacity:1}.toast.err{background:var(--flag)}
+
+  @media(max-width:1040px){
+    .grid{grid-template-columns:1fr}.col{position:static}
+    .list{max-height:none}
+    #toc{display:flex;flex-wrap:wrap;gap:4px 18px}#toc a{border-left:none;padding:2px 0}#toc a.h3{padding-left:0}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
+</style>
+</head>
+<body>
+  <header><div class="wrap bar">
+    <span class="logo"></span>
+    <span class="mark">Sakul<b>Pedo</b></span>
+    <span class="tag">Community-Doku</span>
+  </div></header>
+
+  <main class="wrap">
+    <div class="grid">
+      <nav class="col"><div class="eyebrow">Inhalt</div><div id="toc"><div class="empty">…</div></div></nav>
+
+      <article class="doc" id="about">
+        <h1>SakulTendo</h1>
+        <div class="rule"></div>
+        <div id="content"><p class="empty">Inhalt wird geladen …</p></div>
+      </article>
+
+      <aside class="col" id="comments"><div class="panel">
+        <div class="ph">Kommentare <small id="count"></small></div>
+        <form id="cmtForm">
+          <div class="field"><label for="name">Name</label><input id="name" required autocomplete="name"></div>
+          <div class="field"><label for="comment">Kommentar</label><textarea id="comment" required placeholder="Was denkst du?"></textarea></div>
+          <button class="btn accent" type="submit">Kommentar absenden</button>
+        </form>
+        <div class="list" id="list"></div>
+      </div></aside>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+const ini=n=>esc(n.trim().slice(0,2).toUpperCase()||'??');
+const fmt=d=>{const t=new Date(d);return t.toLocaleDateString('de-DE')+' · '+t.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});};
+const thumb='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v11M2 14v5a2 2 0 0 0 2 2h13.5a2 2 0 0 0 2-1.6l1.3-7A1.5 1.5 0 0 0 20.3 10H14V5a2 2 0 0 0-2-2l-3 7H2z"/></svg>';
+const arrow='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 9V5l-7 7 7 7v-4c5 0 8 1.5 10 5 0-7-3-11-10-11z"/></svg>';
+
+let tt;
+const toast=(m,e)=>{const t=$('#toast');t.textContent=m;t.className='toast show'+(e?' err':'');clearTimeout(tt);tt=setTimeout(()=>t.className='toast',3000);};
+
+const liked=()=>JSON.parse(localStorage.getItem('likedComments')||'{}');
+const isLiked=id=>liked()[id]===true;
+const setLiked=(id,val)=>{const l=liked();if(val)l[id]=true;else delete l[id];localStorage.setItem('likedComments',JSON.stringify(l));};
+const syncLikes=comments=>{const l={};comments.forEach(c=>{if(c.userLiked)l[c.id]=true;});localStorage.setItem('likedComments',JSON.stringify(l));};
+
+/* markdown → html (line based, keine leeren Absätze) */
+const inline=s=>esc(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+function md2html(md){
+  let out='',list=false; const shut=()=>{if(list){out+='</ul>';list=false;}};
+  for(const raw of md.split(/\r?\n/)){
+    const l=raw.trim(); if(!l){shut();continue;} let m;
+    if(m=l.match(/^### (.*)/)){shut();out+=`<h3>${inline(m[1])}</h3>`;}
+    else if(m=l.match(/^## (.*)/)){shut();out+=`<h2>${inline(m[1])}</h2>`;}
+    else if(m=l.match(/^# (.*)/)){shut();out+=`<h2>${inline(m[1])}</h2>`;}
+    else if(m=l.match(/^[*-] (.*)/)){if(!list){out+='<ul>';list=true;}out+=`<li>${inline(m[1])}</li>`;}
+    else{shut();out+=`<p>${inline(l)}</p>`;}
+  } shut(); return out;
+}
+
+let spy;
+function buildToc(){
+  const heads=$('#content').querySelectorAll('h2,h3');
+  if(!heads.length){$('#toc').innerHTML='<div class="empty">Keine Abschnitte</div>';return;}
+  $('#toc').innerHTML=[...heads].map((h,i)=>{
+    h.id='s'+i; return `<a href="#s${i}" class="${h.tagName.toLowerCase()}">${esc(h.textContent)}</a>`;
+  }).join('');
+  spy&&spy.disconnect();
+  spy=new IntersectionObserver(es=>es.forEach(e=>{
+    if(e.isIntersecting)$$('#toc a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id));
+  }),{rootMargin:'-90px 0px -72% 0px'});
+  heads.forEach(h=>spy.observe(h));
+}
+
+async function loadContent(){
+  try{ $('#content').innerHTML=md2html(await(await fetch('content.md')).text()); }
+  catch(e){ $('#content').innerHTML='<p class="empty">Fehler beim Laden des Inhalts.</p>'; }
+  buildToc();
+}
+
+const replyHTML=r=>`<div class="reply" data-id="${r.id}"><div class="top" style="margin-bottom:3px"><div class="ava" style="width:26px;height:26px;font-size:11px">${ini(r.name)}</div><div><div class="who">${esc(r.name)}</div><div class="when">${fmt(r.date)}</div></div></div><div class="text">${esc(r.content)}</div></div>`;
+
+const cmtHTML=c=>`<div class="cmt" data-id="${c.id}">
+  <div class="top"><div class="ava">${ini(c.name)}</div><div><div class="who">${esc(c.name)}</div><div class="when">${fmt(c.date)}</div></div></div>
+  <div class="text">${esc(c.content)}</div>
+  <div class="acts">
+    <button class="act like ${isLiked(c.id)?'on':''}" data-id="${c.id}">${thumb}<span class="n">${c.likes||0}</span></button>
+    <button class="act reply-btn" data-id="${c.id}">${arrow}Antworten</button>
+  </div>
+  <div class="rb" id="rb-${c.id}">
+    <div class="field"><label>Name</label><input class="r-name"></div>
+    <div class="field"><label>Antwort</label><textarea class="r-text"></textarea></div>
+    <button class="btn send" data-id="${c.id}">Antwort absenden</button>
+    <div class="hint">Maximal 5 Antworten pro Stunde</div>
+  </div>
+  <div class="replies">${(c.replies||[]).map(replyHTML).join('')}</div>
+</div>`;
+
+async function loadComments(){
+  try{
+    const c=await(await fetch('api/comments.php')).json();
+    syncLikes(c);
+    $('#count').textContent=c.length?`(${c.length})`:'';
+    $('#list').innerHTML=c.length?c.map(cmtHTML).join(''):'<p class="empty">Noch keine Kommentare. Sei der Erste!</p>';
+  }catch(e){ $('#list').innerHTML='<p class="empty">Fehler beim Laden der Kommentare.</p>'; }
+}
+
+$('#list').addEventListener('click',async e=>{
+  const like=e.target.closest('.like'); if(like)return doLike(like);
+  const rep=e.target.closest('.reply-btn');
+  if(rep){const b=$('#rb-'+rep.dataset.id);$$('.rb.open').forEach(x=>x!==b&&x.classList.remove('open'));b.classList.toggle('open');return;}
+  const send=e.target.closest('.send'); if(send)return doReply(send);
+});
+
+async function doLike(btn){
+  const id=btn.dataset.id;
+  try{const r=await(await fetch('api/like.php?id='+id,{method:'POST'})).json();
+    if(r.success){btn.classList.toggle('on',r.liked);btn.querySelector('.n').textContent=r.likes;setLiked(id,r.liked);}
+    else toast(r.message||'Fehler beim Liken',1);
+  }catch(e){toast('Fehler beim Liken des Kommentars',1);}
+}
+
+async function doReply(btn){
+  const id=btn.dataset.id, box=$('#rb-'+id);
+  const name=box.querySelector('.r-name').value.trim(), content=box.querySelector('.r-text').value.trim();
+  if(!name||!content)return toast('Bitte fülle alle Felder aus',1);
+  try{const r=await(await fetch('api/reply.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commentId:id,name,content})})).json();
+    if(r.success){$(`.cmt[data-id="${id}"] .replies`).insertAdjacentHTML('beforeend',replyHTML(r.reply));box.classList.remove('open');box.querySelector('.r-name').value='';box.querySelector('.r-text').value='';toast('Antwort erfolgreich hinzugefügt');}
+    else toast(r.message||'Fehler beim Hinzufügen der Antwort',1);
+  }catch(e){toast('Fehler beim Hinzufügen der Antwort',1);}
+}
+
+$('#cmtForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const name=$('#name').value.trim(), content=$('#comment').value.trim();
+  if(!name||!content)return toast('Bitte fülle alle Felder aus',1);
+  try{const r=await(await fetch('api/comment.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,content})})).json();
+    if(r.success){const em=$('#list .empty');em&&em.remove();$('#list').insertAdjacentHTML('afterbegin',cmtHTML(r.comment));$('#name').value='';$('#comment').value='';toast('Kommentar erfolgreich hinzugefügt');}
+    else toast(r.message||'Fehler beim Hinzufügen des Kommentars',1);
+  }catch(e){toast('Fehler beim Hinzufügen des Kommentars',1);}
+});
+
+loadContent(); loadComments();
+</script>
+</body>
+</html>
