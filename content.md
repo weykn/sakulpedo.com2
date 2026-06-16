@@ -42,4 +42,4 @@ Inhalte dieser Dokumentation können sich ändern. Letzte Aktualisierung: Juni 2
 
 ### Impressum
 
-Kein Impressum. Kontakt: your@clih.observer
+Kein Impressum. Kontakt: info@sakulpedo.com
