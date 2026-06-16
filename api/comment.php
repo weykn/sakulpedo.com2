@@ -39,8 +39,8 @@ if (count($recentComments) >= 3) {
 $data = json_decode(file_get_contents('php://input'), true);
 
 // Validieren
-if (empty($data['name']) || empty($data['content'])) {
-    echo json_encode(['success' => false, 'message' => 'Name und Inhalt sind erforderlich']);
+if (empty($data['content'])) {
+    echo json_encode(['success' => false, 'message' => 'Inhalt ist erforderlich']);
     exit;
 }
 
@@ -50,7 +50,7 @@ $comments = json_decode(file_get_contents($commentsFile), true);
 // Neuen Kommentar erstellen
 $newComment = [
     'id' => uniqid(),
-    'name' => htmlspecialchars($data['name']),
+    'name' => htmlspecialchars(!empty($data['name']) ? $data['name'] : 'anonym'),
     'content' => htmlspecialchars($data['content']),
     'date' => date('c'),
     'likes' => 0,

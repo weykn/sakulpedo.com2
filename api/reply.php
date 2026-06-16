@@ -40,8 +40,8 @@ if (count($recentComments) >= 5) {
 $data = json_decode(file_get_contents('php://input'), true);
 
 // Validieren
-if (empty($data['commentId']) || empty($data['name']) || empty($data['content'])) {
-    echo json_encode(['success' => false, 'message' => 'Alle Felder sind erforderlich']);
+if (empty($data['commentId']) || empty($data['content'])) {
+    echo json_encode(['success' => false, 'message' => 'Kommentar-ID und Inhalt sind erforderlich']);
     exit;
 }
 
@@ -55,7 +55,7 @@ foreach ($comments as &$comment) {
         // Neue Antwort erstellen
         $newReply = [
             'id' => uniqid(),
-            'name' => htmlspecialchars($data['name']),
+            'name' => htmlspecialchars(!empty($data['name']) ? $data['name'] : 'anonym'),
             'content' => htmlspecialchars($data['content']),
             'date' => date('c')
         ];
