@@ -1,12 +1,8 @@
 ### Einführung
 
+![SakulTendo](api/image.png){right}
+
 SakulTendo ist ein 34-jähriger deutschsprachiger Content Creator, der auf TikTok und Twitch aktiv ist. Während er öffentlich Content zu Japan-Kultur und Nintendo produziert, wurde er in der Vergangenheit mehrfach mit fragwürdigem Verhalten gegenüber Frauen – darunter auch Minderjährige – konfrontiert.
-
-### Plattformen und Reichweite
-
-TikTok: @sakultendo – rund 13.400 Follower, etwa 573.500 Likes
-Twitch: SakulTendo – täglich ab 18 Uhr live (außer donnerstags)
-Weitere Links: linktr.ee/SakulTendo
 
 ### Kontroversen und Vorwürfe
 
