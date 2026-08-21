@@ -131,6 +131,9 @@
   #content li::before{content:"";position:absolute;left:2px;top:.62em;width:6px;height:6px;border-radius:2px;background:var(--accent);opacity:.65;transform:rotate(45deg)}
   #content strong{font-weight:600;color:var(--ink)}
   #content em{color:var(--ink)}
+  #content a{color:var(--accent);text-decoration:none;font-weight:500;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent);transition:color .18s,background .18s,border-color .18s}
+  #content a:hover{background:var(--accent-soft);border-bottom-color:var(--accent)}
+  #content figure a,#content a:has(img){border:none}
 
   /* images */
   #content img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:var(--r-m);background:var(--bg-2)}
@@ -297,7 +300,42 @@ localStorage.removeItem('likedComments');
 /* markdown → html (line based, keine leeren Absätze) */
 const img=/!\[([^\]]*)\]\((\S+?)\)/g;
 const imgTag=(alt,src)=>`<img src="${esc(src)}" alt="${esc(alt)}" loading="lazy">`;
-const inline=s=>esc(s).replace(img,'<img src="$2" alt="$1" loading="lazy">').replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+
+/* Links: [text](url), nackte URLs, www-Hosts und E-Mails (GitHub-Stil) */
+const mdLink=/\[([^\]\n]*)\]\(([^()\s]*(?:\([^()\s]*\)[^()\s]*)*)\)/g;
+const bare=/\b(?:https?:\/\/|www\.)[^\s<]+|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+const trail=/(?:[.,;:!?'*_~]|&quot;|&gt;|&lt;)+$/;
+/* nur bekannte, ungefährliche Schemata – kein javascript:/data: */
+const safeUrl=u=>{
+  const t=u.trim();
+  if(/^(?:https?:\/\/|mailto:|tel:|#|\/|\.{1,2}\/)/i.test(t))return t;
+  if(/^www\./i.test(t))return 'http://'+t;
+  if(/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(t))return 'mailto:'+t;
+  if(/^[A-Za-z][A-Za-z0-9+.-]*:/.test(t))return '';
+  return t;
+};
+const anchor=(url,inner)=>{
+  const h=safeUrl(url); if(!h)return inner;
+  const ext=/^(?:https?:)?\/\//i.test(h);
+  return `<a href="${h}"${ext?' target="_blank" rel="noopener noreferrer"':''}>${inner}</a>`;
+};
+const emph=t=>t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\*(.+?)\*/g,'<em>$1</em>');
+const autolink=(t,keep)=>t.replace(bare,m=>{
+  let u=m,tail='';
+  const p=u.match(trail); if(p){tail=p[0];u=u.slice(0,-tail.length);}
+  /* schließende Klammer nur mitnehmen, wenn sie auch geöffnet wurde */
+  while(u.endsWith(')')&&(u.split(')').length)>(u.split('(').length)){tail=')'+tail;u=u.slice(0,-1);}
+  return u?keep(anchor(u,u))+tail:m;
+});
+function inline(s){
+  const H=[],keep=h=>'\u0000'+(H.push(h)-1)+'\u0000';
+  let out=esc(s)
+    .replace(img,(m,alt,src)=>keep(`<img src="${src}" alt="${alt}" loading="lazy">`))
+    .replace(mdLink,(m,txt,url)=>keep(anchor(url,emph(txt)||url)));
+  out=emph(autolink(out,keep));
+  let prev; do{prev=out;out=out.replace(/\u0000(\d+)\u0000/g,(m,i)=>H[i]);}while(out!==prev);
+  return out;
+}
 function md2html(md){
   let out='',list=false; const shut=()=>{if(list){out+='</ul>';list=false;}};
   for(const raw of md.split(/\r?\n/)){

@@ -36,6 +36,8 @@ Diese Dokumentation erfasst die Kontroversen rund um SakulTendo. Die hier aufgef
 
 Inhalte dieser Dokumentation können sich ändern. Letzte Aktualisierung: Juni 2026.
 
+GitHub: https://github.com/weykn/sakulpedo.com2
+
 ### Impressum
 
 Kein Impressum. Kontakt: info@sakulpedo.com
