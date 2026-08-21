@@ -1,12 +1,13 @@
 <?php
+require __DIR__ . '/lib.php';
 header('Content-Type: application/json');
 
 // Pfad zur JSON-Datei
-$commentsFile = '../data/comments.json';
-$rateLimitFile = '../data/rate_limits.json'; // Rate-Limit-Datei
+$commentsFile = data_file('comments.json');
+$rateLimitFile = data_file('rate_limits.json'); // Rate-Limit-Datei
 
 // IP-Adresse des Benutzers ermitteln
-$userIp = $_SERVER['REMOTE_ADDR'];
+$userIp = client_ip();
 
 // Überprüfen, ob die Datei existiert
 if (!file_exists($commentsFile)) {
@@ -20,7 +21,7 @@ if (!file_exists($rateLimitFile)) {
 }
 
 // Rate-Limit-Daten aus der Datei lesen
-$rateLimits = json_decode(file_get_contents($rateLimitFile), true);
+$rateLimits = read_json($rateLimitFile);
 
 // Aktuelle Zeit
 $currentTime = time();
@@ -46,15 +47,15 @@ if (empty($data['commentId']) || empty($data['content'])) {
 }
 
 // Kommentare aus der Datei lesen
-$comments = json_decode(file_get_contents($commentsFile), true);
+$comments = read_json($commentsFile);
 
 // Kommentar finden
 $found = false;
 foreach ($comments as &$comment) {
-    if ($comment['id'] === $data['commentId']) {
+    if (($comment['id'] ?? null) === $data['commentId']) {
         // Neue Antwort erstellen
         $newReply = [
-            'id' => uniqid(),
+            'id' => new_id(),
             'name' => !empty($data['name']) ? $data['name'] : 'anonym',
             'content' => $data['content'],
             'date' => date('c'),
@@ -72,6 +73,7 @@ foreach ($comments as &$comment) {
         break;
     }
 }
+unset($comment);
 
 // Wenn der Kommentar nicht gefunden wurde
 if (!$found) {

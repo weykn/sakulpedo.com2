@@ -1,73 +1,56 @@
 <?php
+require __DIR__ . '/lib.php';
 header('Content-Type: application/json');
 
-$commentsFile = '../data/comments.json';
-$likesFile    = '../data/likes.json';
-$commentId    = $_GET['id'] ?? '';
-$userIp       = $_SERVER['REMOTE_ADDR'];
-
-if (empty($commentId)) {
-    echo json_encode(['success' => false, 'message' => 'Kommentar-ID ist erforderlich']);
-    exit;
+// Nur POST: ein GET würde sonst z. B. beim Prefetch einen Like auslösen.
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+    http_response_code(405);
+    json_fail('Methode nicht erlaubt');
 }
 
-if (!file_exists($commentsFile)) {
-    echo json_encode(['success' => false, 'message' => 'Kommentardatei nicht gefunden']);
-    exit;
+$commentId = trim((string)($_GET['id'] ?? ''));
+$userIp    = client_ip();
+
+if ($commentId === '') {
+    json_fail('Kommentar-ID ist erforderlich');
 }
 
-if (!file_exists($likesFile)) {
-    file_put_contents($likesFile, json_encode([]));
+$commentsFile = data_file('comments.json');
+if (!is_file($commentsFile)) {
+    json_fail('Kommentardatei nicht gefunden');
 }
 
-$likesData   = json_decode(file_get_contents($likesFile), true) ?: [];
-$comments    = json_decode(file_get_contents($commentsFile), true) ?: [];
-$alreadyLiked = isset($likesData[$commentId]) && in_array($userIp, $likesData[$commentId]);
+// Prüft, ob die ID überhaupt existiert (Kommentar oder Antwort), und liefert
+// den Alt-Zähler für die einmalige Übernahme in likes.json.
+$legacyLikes = legacy_like_count(read_json($commentsFile), $commentId);
+if ($legacyLikes === null) {
+    json_fail('Kommentar nicht gefunden');
+}
 
-$found    = false;
-$newLikes = 0;
+$total = 0;
+$liked = false;
 
-foreach ($comments as &$comment) {
-    if ($comment['id'] === $commentId) {
-        $found = true;
-        if ($alreadyLiked) {
-            $comment['likes'] = max(0, ($comment['likes'] ?? 0) - 1);
-            $likesData[$commentId] = array_values(
-                array_filter($likesData[$commentId], fn($ip) => $ip !== $userIp)
-            );
+$saved = with_locked_json(
+    data_file('likes.json'),
+    function (array &$store) use ($commentId, $userIp, $legacyLikes, &$total, &$liked) {
+        $entry = like_entry($store, $commentId, $legacyLikes);
+
+        $pos = array_search($userIp, $entry['ips'], true);
+        if ($pos === false) {
+            $entry['ips'][] = $userIp;   // liken
+            $liked = true;
         } else {
-            $comment['likes'] = ($comment['likes'] ?? 0) + 1;
-            $likesData[$commentId][] = $userIp;
+            array_splice($entry['ips'], $pos, 1);   // unliken
+            $liked = false;
         }
-        $newLikes = $comment['likes'];
-        break;
+
+        $store[$commentId] = $entry;
+        $total = like_total($entry);
     }
-    foreach ($comment['replies'] ?? [] as &$reply) {
-        if ($reply['id'] === $commentId) {
-            $found = true;
-            if ($alreadyLiked) {
-                $reply['likes'] = max(0, ($reply['likes'] ?? 0) - 1);
-                $likesData[$commentId] = array_values(
-                    array_filter($likesData[$commentId], fn($ip) => $ip !== $userIp)
-                );
-            } else {
-                $reply['likes'] = ($reply['likes'] ?? 0) + 1;
-                $likesData[$commentId][] = $userIp;
-            }
-            $newLikes = $reply['likes'];
-            break 2;
-        }
-    }
-    unset($reply);
+);
+
+if (!$saved) {
+    json_fail('Like konnte nicht gespeichert werden');
 }
 
-if (!$found) {
-    echo json_encode(['success' => false, 'message' => 'Kommentar nicht gefunden']);
-    exit;
-}
-
-file_put_contents($commentsFile, json_encode($comments));
-file_put_contents($likesFile, json_encode($likesData));
-
-echo json_encode(['success' => true, 'likes' => $newLikes, 'liked' => !$alreadyLiked]);
-?>
+echo json_encode(['success' => true, 'likes' => $total, 'liked' => $liked]);

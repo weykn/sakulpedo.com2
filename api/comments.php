@@ -1,28 +1,42 @@
 <?php
+require __DIR__ . '/lib.php';
 header('Content-Type: application/json');
 
-$commentsFile = '../data/comments.json';
-$likesFile    = '../data/likes.json';
-$userIp       = $_SERVER['REMOTE_ADDR'];
+$comments  = read_json(data_file('comments.json'));
+$likeStore = read_json(data_file('likes.json'));
+$userIp    = client_ip();
 
-if (!file_exists($commentsFile)) {
-    file_put_contents($commentsFile, json_encode([]));
+/**
+ * Ergänzt Like-Zahl und userLiked aus likes.json. Baut bewusst ein neues
+ * Array statt per Referenz zu schreiben – so kann ein Wert nicht am falschen
+ * Element landen.
+ */
+function with_likes(array $item, array $likeStore, string $userIp): array {
+    $entry = like_entry($likeStore, (string)$item['id'], (int)($item['likes'] ?? 0));
+
+    $item['likes']     = like_total($entry);
+    $item['userLiked'] = in_array($userIp, $entry['ips'], true);
+    unset($item['liked']);   // Altlast, wurde nie aktualisiert
+
+    return $item;
 }
 
-$comments  = json_decode(file_get_contents($commentsFile), true) ?: [];
-$likesData = file_exists($likesFile)
-    ? (json_decode(file_get_contents($likesFile), true) ?: [])
-    : [];
-
-foreach ($comments as &$comment) {
-    $id = $comment['id'];
-    $comment['userLiked'] = isset($likesData[$id]) && in_array($userIp, $likesData[$id]);
-    foreach ($comment['replies'] ?? [] as &$reply) {
-        $rid = $reply['id'];
-        $reply['userLiked'] = isset($likesData[$rid]) && in_array($userIp, $likesData[$rid]);
+$out = [];
+foreach ($comments as $comment) {
+    if (!is_array($comment) || !isset($comment['id'])) {
+        continue;
     }
-    unset($reply);
+
+    $replies = [];
+    foreach (($comment['replies'] ?? []) as $reply) {
+        if (is_array($reply) && isset($reply['id'])) {
+            $replies[] = with_likes($reply, $likeStore, $userIp);
+        }
+    }
+
+    $comment = with_likes($comment, $likeStore, $userIp);
+    $comment['replies'] = $replies;
+    $out[] = $comment;
 }
 
-echo json_encode(array_values($comments));
-?>
+echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

@@ -1,12 +1,13 @@
 <?php
+require __DIR__ . '/lib.php';
 header('Content-Type: application/json');
 
 // Pfad zur JSON-Datei
-$commentsFile = '../data/comments.json';
-$rateLimitFile = '../data/rate_limits.json'; // Neue Datei für Rate Limits
+$commentsFile = data_file('comments.json');
+$rateLimitFile = data_file('rate_limits.json'); // Neue Datei für Rate Limits
 
 // IP-Adresse des Benutzers ermitteln
-$userIp = $_SERVER['REMOTE_ADDR'];
+$userIp = client_ip();
 
 // Überprüfen, ob die Datei existiert
 if (!file_exists($commentsFile)) {
@@ -19,7 +20,7 @@ if (!file_exists($rateLimitFile)) {
 }
 
 // Rate-Limit-Daten aus der Datei lesen
-$rateLimits = json_decode(file_get_contents($rateLimitFile), true);
+$rateLimits = read_json($rateLimitFile);
 
 // Aktuelle Zeit
 $currentTime = time();
@@ -45,16 +46,15 @@ if (empty($data['content'])) {
 }
 
 // Kommentare aus der Datei lesen
-$comments = json_decode(file_get_contents($commentsFile), true);
+$comments = read_json($commentsFile);
 
 // Neuen Kommentar erstellen
 $newComment = [
-    'id' => uniqid(),
+    'id' => new_id(),
     'name' => !empty($data['name']) ? $data['name'] : 'anonym',
     'content' => $data['content'],
     'date' => date('c'),
     'likes' => 0,
-    'liked' => false,
     'replies' => []
 ];
 
