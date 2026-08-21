@@ -345,7 +345,7 @@ window.addEventListener('scroll',()=>{updateToc();updateProgress();},{passive:tr
 window.addEventListener('resize',updateProgress,{passive:true});
 
 async function loadContent(){
-  try{ $('#content').innerHTML=md2html(await(await fetch('content.md')).text()); }
+  try{ $('#content').innerHTML=md2html(await(await fetch('README.md')).text()); }
   catch(e){ $('#content').innerHTML='<p class="empty">Fehler beim Laden des Inhalts.</p>'; }
   buildToc();updateProgress();
 }
