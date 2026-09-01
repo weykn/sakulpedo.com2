@@ -58,6 +58,7 @@ sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $n
         }
 
         $comments[$ci]['replies'] = $replies;
+        sp_trim_comments($comments);
         $status = 'ok';
         return true;
     }

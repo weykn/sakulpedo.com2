@@ -3,8 +3,11 @@ FROM php:8.3-cli
 COPY . /app
 WORKDIR /app
 
-# Datenverzeichnis anlegen (router.php sperrt den Web-Zugriff darauf).
-RUN mkdir -p /app/data/ip
+# Die Daten liegen absolut unter /data – außerhalb des Document-Roots /app und
+# damit über das Web gar nicht erreichbar. Ist dort ein Volume eingehängt,
+# überleben die Kommentare einen Neustart.
+ENV SP_DATA_DIR=/data
+RUN mkdir -p /data/ip
 
 EXPOSE 10000
 

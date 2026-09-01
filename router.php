@@ -9,7 +9,7 @@ sp_guard();
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
 // Interne Dateien nicht ausliefern.
-if (preg_match('#^/(data|router\.php|cleanup\.php|Dockerfile|api/lib\.php)#', $path)) {
+if (preg_match('#^/(data|router\.php|cleanup\.php|remove\.php|Dockerfile|api/lib\.php)#', $path)) {
     http_response_code(404);
     echo "Not found\n";
     return true;

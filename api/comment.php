@@ -44,7 +44,7 @@ if (sp_size($newComment) > SP_MAX_ENTRY_BYTES) {
 // Kommentar am Anfang einfügen und die Gesamtzahl begrenzen
 $ok = sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($newComment) {
     array_unshift($comments, $newComment);
-    $comments = array_slice($comments, 0, SP_MAX_COMMENTS);
+    sp_trim_comments($comments);
     return true;
 });
 

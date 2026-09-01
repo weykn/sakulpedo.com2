@@ -5,7 +5,11 @@
 if (defined('SP_LIB')) { return; }
 define('SP_LIB', 1);
 
-define('SP_DATA_DIR',      __DIR__ . '/../data');
+// Ablageort der Daten. Auf dem Server liegt er absolut unter /data (dorthin
+// zeigt SP_DATA_DIR aus dem Dockerfile), lokal neben dem Projekt.
+if (!defined('SP_DATA_DIR')) {
+    define('SP_DATA_DIR',  rtrim(getenv('SP_DATA_DIR') ?: __DIR__ . '/../data', '/'));
+}
 define('SP_IP_DIR',        SP_DATA_DIR . '/ip');
 define('SP_COMMENTS_FILE', SP_DATA_DIR . '/comments.json');
 define('SP_LIKES_FILE',    SP_DATA_DIR . '/likes.json');
@@ -35,6 +39,14 @@ define('SP_MAX_LIKE_IPS',   5000);
 // einzelne Antwort, und ein Kommentar samt allen seinen Antworten.
 define('SP_MAX_ENTRY_BYTES',   16384);
 define('SP_MAX_COMMENT_BYTES', 65536);
+
+// Obergrenze für die ganze Kommentardatei. Sie wird bei jedem Seitenaufruf
+// gelesen, darf also nicht beliebig wachsen.
+define('SP_MAX_TOTAL_BYTES',   4194304);
+
+// Beim Aufräumen: alles, was als einzelnes Objekt größer ist, wird gar nicht
+// erst eingelesen – es wäre ohnehin zu groß.
+define('SP_SCAN_MAX_BYTES',    SP_MAX_COMMENT_BYTES * 2);
 
 // --------------------------------------------------------------------------
 // Grundlagen
@@ -117,6 +129,25 @@ function sp_entry_only(array $entry): array
 {
     unset($entry['replies']);
     return $entry;
+}
+
+// Hält die Kommentarliste unter der Anzahl- und der Byte-Grenze. Es fallen
+// immer die ältesten Kommentare weg (die Liste ist neueste zuerst).
+function sp_trim_comments(array &$comments): int
+{
+    $removed = 0;
+
+    if (count($comments) > SP_MAX_COMMENTS) {
+        $removed   = count($comments) - SP_MAX_COMMENTS;
+        $comments  = array_slice($comments, 0, SP_MAX_COMMENTS);
+    }
+
+    while ($comments && sp_size($comments) > SP_MAX_TOTAL_BYTES) {
+        array_pop($comments);
+        $removed++;
+    }
+
+    return $removed;
 }
 
 // --------------------------------------------------------------------------
