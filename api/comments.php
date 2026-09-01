@@ -27,4 +27,15 @@ foreach ($comments as $ci => $comment) {
     }
 }
 
-sp_json(array_values($comments));
+// Strip server-side fields before sending to clients
+$out = array_values($comments);
+foreach ($out as &$c) {
+    unset($c['ip']);
+    if (isset($c['replies']) && is_array($c['replies'])) {
+        foreach ($c['replies'] as &$r) { unset($r['ip']); }
+        unset($r);
+    }
+}
+unset($c);
+
+sp_json($out);

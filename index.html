@@ -196,12 +196,7 @@
   .toast.err{background:var(--flag);color:#fff}
 
   /* ---------- responsive ---------- */
-  @media(max-width:1180px){
-    .grid{grid-template-columns:clamp(220px,22vw,290px) minmax(0,1fr)}
-    aside.col{grid-column:1/-1;position:static}
-    .list{max-height:none}
-  }
-  @media(max-width:900px){
+  @media(max-width:960px){
     main{padding:30px 0 30px}
     .grid{grid-template-columns:1fr;gap:26px}
     .col{position:static}
@@ -212,6 +207,7 @@
     #toc a.h3{padding-left:11px}
     #toc a.on{border-color:var(--accent-line)}
     .doc{padding:26px 22px 30px;border-radius:var(--r-m)}
+    .list{max-height:none}
   }
   @media(max-width:640px){
     .wrap{padding:0 16px}

@@ -15,15 +15,19 @@ define('SP_COMMENTS_FILE', SP_DATA_DIR . '/comments.json');
 define('SP_LIKES_FILE',    SP_DATA_DIR . '/likes.json');
 
 // Traffic-Sperre (gilt für jede Art von Anfrage)
-define('SP_TRAFFIC_WINDOW', 10);     // Länge des Zeitfensters in Sekunden
-define('SP_TRAFFIC_MAX',    40);     // erlaubte Anfragen je Fenster und IP
-define('SP_BLOCK_BASE',     60);     // erste Sperre: 1 Minute
-define('SP_BLOCK_MAX',      86400);  // Obergrenze: 24 Stunden
-define('SP_VIOLATION_TTL',  86400);  // Verstöße nach dieser Ruhezeit vergessen
+define('SP_TRAFFIC_WINDOW', 10);      // Länge des Zeitfensters in Sekunden
+define('SP_TRAFFIC_MAX',    15);      // erlaubte Anfragen je Fenster und IP
+define('SP_BLOCK_BASE',     600);     // erste Sperre: 10 Minuten
+define('SP_BLOCK_MAX',      604800);  // Obergrenze: 7 Tage
+define('SP_VIOLATION_TTL',  604800);  // Verstöße nach dieser Ruhezeit vergessen
 
-// Schreib-Limit: maximal 3 Kommentare/Antworten pro Minute
-define('SP_WRITE_WINDOW',   60);
-define('SP_WRITE_MAX',      3);
+// Schreib-Limit: maximal 2 Kommentare/Antworten pro 2 Minuten
+define('SP_WRITE_WINDOW',   120);
+define('SP_WRITE_MAX',      2);
+
+// Duplikat-Erkennung: Ähnlichkeitsschwelle und Prüftiefe
+define('SP_DUP_CHECK_LIMIT', 150);   // wie viele Einträge auf Duplikate geprüft werden
+define('SP_DUP_SIMILARITY',  75);    // Mindest-Ähnlichkeit in Prozent
 
 // Größenbegrenzungen, damit die Dateien nicht unbegrenzt wachsen
 // Body großzügiger als der Inhalt selbst: 2000 Zeichen können als UTF-8 oder
@@ -365,6 +369,95 @@ function sp_check_write_limit(string $ip): bool
 }
 
 // --------------------------------------------------------------------------
+// Duplikat-Erkennung
+// --------------------------------------------------------------------------
+
+function sp_normalize(string $text): string
+{
+    $text = mb_strtolower($text, 'UTF-8');
+    $text = preg_replace('/\s+/u', ' ', $text) ?? '';
+    return trim($text);
+}
+
+function sp_similarity(string $a, string $b): float
+{
+    if ($a === '' && $b === '') { return 100.0; }
+    if ($a === '' || $b === '') { return 0.0; }
+    // Limit comparison length to keep similar_text fast
+    $a = mb_substr($a, 0, 500, 'UTF-8');
+    $b = mb_substr($b, 0, 500, 'UTF-8');
+    similar_text($a, $b, $percent);
+    return (float) $percent;
+}
+
+/**
+ * Checks whether $name+$content is a near-duplicate of any recent entry.
+ * Call this inside a sp_update_json callback (the comments array is already locked).
+ */
+function sp_is_duplicate_in(array $comments, string $name, string $content): bool
+{
+    $normContent = sp_normalize($content);
+    $normFull    = sp_normalize($name . ' ' . $content);
+    $checked     = 0;
+
+    foreach ($comments as $c) {
+        if ($checked >= SP_DUP_CHECK_LIMIT) { break; }
+        $checked++;
+
+        $cContent = sp_normalize((string)($c['content'] ?? ''));
+        if ($normContent !== '' && sp_similarity($normContent, $cContent) >= SP_DUP_SIMILARITY) {
+            return true;
+        }
+
+        $cFull = sp_normalize(($c['name'] ?? '') . ' ' . ($c['content'] ?? ''));
+        if (sp_similarity($normFull, $cFull) >= SP_DUP_SIMILARITY) {
+            return true;
+        }
+
+        if (isset($c['replies']) && is_array($c['replies'])) {
+            foreach ($c['replies'] as $r) {
+                if ($checked >= SP_DUP_CHECK_LIMIT) { break 2; }
+                $checked++;
+
+                $rContent = sp_normalize((string)($r['content'] ?? ''));
+                if ($normContent !== '' && sp_similarity($normContent, $rContent) >= SP_DUP_SIMILARITY) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Counts a spam event against the IP: adds 2 violations and sets a block.
+ */
+function sp_flag_ip_spam(string $ip): void
+{
+    $now = time();
+    sp_update_ip_state($ip, function (array &$s) use ($now) {
+        $s['v']  = ($s['v'] ?? 0) + 2;
+        $s['lv'] = $now;
+        $s['b']  = $now + sp_block_duration($s['v']);
+        return true;
+    });
+}
+
+/**
+ * Permanently bans an IP (sets block to PHP_INT_MAX and max violations).
+ */
+function sp_ban_ip(string $ip): void
+{
+    sp_update_ip_state($ip, function (array &$s) {
+        $s['v']  = 20;
+        $s['lv'] = time();
+        $s['b']  = PHP_INT_MAX;
+        return true;
+    });
+}
+
+// --------------------------------------------------------------------------
 // Aufräumen: alte IP-Zustandsdateien gelegentlich entfernen, damit das
 // Verzeichnis nicht unbegrenzt wächst.
 // --------------------------------------------------------------------------
@@ -383,6 +476,10 @@ function sp_gc(): void
         $checked++;
 
         $path = SP_IP_DIR . '/' . $entry;
+        $raw  = @file_get_contents($path);
+        $st   = $raw ? json_decode($raw, true) : null;
+        // Never GC a permanently banned IP
+        if (is_array($st) && ($st['b'] ?? 0) === PHP_INT_MAX) { continue; }
         $age  = $now - (int) @filemtime($path);
         if ($age > SP_VIOLATION_TTL) { @unlink($path); }
     }

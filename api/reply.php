@@ -32,6 +32,7 @@ $newReply = [
     'content' => $content,
     'date'    => date('c'),
     'likes'   => 0,
+    'ip'      => $userIp,
 ];
 
 // Datenmenge der einzelnen Antwort begrenzen
@@ -41,7 +42,13 @@ if (sp_size($newReply) > SP_MAX_ENTRY_BYTES) {
 
 $status = 'notfound';
 
-sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply, &$status) {
+sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply, $userIp, &$status) {
+    // Duplikat-Prüfung über alle Kommentare und Antworten
+    if (sp_is_duplicate_in($comments, $newReply['name'], $newReply['content'])) {
+        $status = 'duplicate';
+        return false;
+    }
+
     foreach ($comments as $ci => $comment) {
         if (($comment['id'] ?? '') !== $commentId) { continue; }
 
@@ -54,7 +61,7 @@ sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $n
         $candidate['replies'] = $replies;
         if (sp_size($candidate) > SP_MAX_COMMENT_BYTES) {
             $status = 'full';
-            return false; // Datei bleibt unverändert
+            return false;
         }
 
         $comments[$ci]['replies'] = $replies;
@@ -65,6 +72,11 @@ sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $n
 
     return false;
 });
+
+if ($status === 'duplicate') {
+    sp_flag_ip_spam($userIp);
+    sp_json(['success' => false, 'message' => 'Doppelter Inhalt wurde abgelehnt.'], 429);
+}
 
 if ($status === 'full') {
     sp_json([
