@@ -1,92 +1,55 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/lib.php';
 
-// Pfad zur JSON-Datei
-$commentsFile = '../data/comments.json';
-$rateLimitFile = '../data/rate_limits.json'; // Rate-Limit-Datei
+sp_guard();
 
-// IP-Adresse des Benutzers ermitteln
-$userIp = $_SERVER['REMOTE_ADDR'];
+$userIp = sp_ip();
 
-// Überprüfen, ob die Datei existiert
-if (!file_exists($commentsFile)) {
-    echo json_encode(['success' => false, 'message' => 'Kommentardatei nicht gefunden']);
-    exit;
+// Schreib-Limit: Antworten zählen zu denselben 3 Beiträgen pro Minute
+if (!sp_check_write_limit($userIp)) {
+    sp_json([
+        'success' => false,
+        'message' => 'Rate-Limit überschritten. Es sind nur 3 Beiträge pro Minute möglich.',
+    ], 429);
 }
 
-// Rate-Limit-Datei erstellen, falls nicht vorhanden
-if (!file_exists($rateLimitFile)) {
-    file_put_contents($rateLimitFile, json_encode([]));
+$data = sp_body();
+if ($data === null) {
+    sp_json(['success' => false, 'message' => 'Ungültige oder zu große Anfrage'], 400);
 }
 
-// Rate-Limit-Daten aus der Datei lesen
-$rateLimits = json_decode(file_get_contents($rateLimitFile), true);
+$commentId = sp_text($data['commentId'] ?? '', 64);
+$content   = sp_text($data['content'] ?? '', SP_MAX_CONTENT);
 
-// Aktuelle Zeit
-$currentTime = time();
+if ($commentId === '' || $content === '') {
+    sp_json(['success' => false, 'message' => 'Kommentar-ID und Inhalt sind erforderlich'], 400);
+}
+$name = sp_text($data['name'] ?? '', SP_MAX_NAME);
 
-// Rate-Limit-Prüfung (maximal 5 Kommentare/Antworten pro Stunde)
-$userComments = isset($rateLimits[$userIp]) ? $rateLimits[$userIp] : [];
-$recentComments = array_filter($userComments, function($timestamp) use ($currentTime) {
-    return $currentTime - $timestamp < 3600; // 1 Stunde in Sekunden
+$newReply = [
+    'id'      => uniqid('', true),
+    'name'    => $name !== '' ? $name : 'anonym',
+    'content' => $content,
+    'date'    => date('c'),
+    'likes'   => 0,
+];
+
+$found = sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply) {
+    foreach ($comments as &$comment) {
+        if (($comment['id'] ?? '') === $commentId) {
+            $replies = isset($comment['replies']) && is_array($comment['replies']) ? $comment['replies'] : [];
+            array_unshift($replies, $newReply);
+            $comment['replies'] = array_slice($replies, 0, SP_MAX_REPLIES);
+            return true;
+        }
+    }
+    unset($comment);
+
+    return false;
 });
 
-if (count($recentComments) >= 5) {
-    echo json_encode(['success' => false, 'message' => 'Rate-Limit überschritten. Sie können nur 5 Kommentare/Antworten pro Stunde hinterlassen.']);
-    exit;
+if ($found !== true) {
+    sp_json(['success' => false, 'message' => 'Kommentar nicht gefunden'], 404);
 }
 
-// POST-Daten empfangen
-$data = json_decode(file_get_contents('php://input'), true);
-
-// Validieren
-if (empty($data['commentId']) || empty($data['content'])) {
-    echo json_encode(['success' => false, 'message' => 'Kommentar-ID und Inhalt sind erforderlich']);
-    exit;
-}
-
-// Kommentare aus der Datei lesen
-$comments = json_decode(file_get_contents($commentsFile), true);
-
-// Kommentar finden
-$found = false;
-foreach ($comments as &$comment) {
-    if ($comment['id'] === $data['commentId']) {
-        // Neue Antwort erstellen
-        $newReply = [
-            'id' => uniqid(),
-            'name' => !empty($data['name']) ? $data['name'] : 'anonym',
-            'content' => $data['content'],
-            'date' => date('c'),
-            'likes' => 0
-        ];
-        
-        // Antworten initialisieren, falls nicht vorhanden
-        if (!isset($comment['replies'])) {
-            $comment['replies'] = [];
-        }
-        
-        // Antwort hinzufügen
-        array_unshift($comment['replies'], $newReply);
-        $found = true;
-        break;
-    }
-}
-
-// Wenn der Kommentar nicht gefunden wurde
-if (!$found) {
-    echo json_encode(['success' => false, 'message' => 'Kommentar nicht gefunden']);
-    exit;
-}
-
-// Rate-Limit aktualisieren
-$recentComments[] = $currentTime;
-$rateLimits[$userIp] = $recentComments;
-
-// Kommentare und Rate-Limits in die Dateien schreiben
-file_put_contents($commentsFile, json_encode($comments));
-file_put_contents($rateLimitFile, json_encode($rateLimits));
-
-// Erfolg und neue Antwort zurückgeben
-echo json_encode(['success' => true, 'reply' => $newReply]);
-?>
+sp_json(['success' => true, 'reply' => $newReply]);

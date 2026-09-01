@@ -1,74 +1,50 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/lib.php';
 
-// Pfad zur JSON-Datei
-$commentsFile = '../data/comments.json';
-$rateLimitFile = '../data/rate_limits.json'; // Neue Datei für Rate Limits
+sp_guard();
 
-// IP-Adresse des Benutzers ermitteln
-$userIp = $_SERVER['REMOTE_ADDR'];
+$userIp = sp_ip();
 
-// Überprüfen, ob die Datei existiert
-if (!file_exists($commentsFile)) {
-    file_put_contents($commentsFile, json_encode([]));
+// Schreib-Limit: maximal 3 Kommentare pro Minute
+if (!sp_check_write_limit($userIp)) {
+    sp_json([
+        'success' => false,
+        'message' => 'Rate-Limit überschritten. Es sind nur 3 Kommentare pro Minute möglich.',
+    ], 429);
 }
 
-// Rate-Limit-Datei erstellen, falls nicht vorhanden
-if (!file_exists($rateLimitFile)) {
-    file_put_contents($rateLimitFile, json_encode([]));
+// POST-Daten empfangen (Größe begrenzt)
+$data = sp_body();
+if ($data === null) {
+    sp_json(['success' => false, 'message' => 'Ungültige oder zu große Anfrage'], 400);
 }
-
-// Rate-Limit-Daten aus der Datei lesen
-$rateLimits = json_decode(file_get_contents($rateLimitFile), true);
-
-// Aktuelle Zeit
-$currentTime = time();
-
-// Rate-Limit-Prüfung (maximal 3 Kommentare pro Stunde)
-$userComments = isset($rateLimits[$userIp]) ? $rateLimits[$userIp] : [];
-$recentComments = array_filter($userComments, function($timestamp) use ($currentTime) {
-    return $currentTime - $timestamp < 3600; // 1 Stunde in Sekunden
-});
-
-if (count($recentComments) >= 3) {
-    echo json_encode(['success' => false, 'message' => 'Rate-Limit überschritten. Sie können nur 3 Kommentare pro Stunde hinterlassen.']);
-    exit;
-}
-
-// POST-Daten empfangen
-$data = json_decode(file_get_contents('php://input'), true);
 
 // Validieren
-if (empty($data['content'])) {
-    echo json_encode(['success' => false, 'message' => 'Inhalt ist erforderlich']);
-    exit;
+$content = sp_text($data['content'] ?? '', SP_MAX_CONTENT);
+if ($content === '') {
+    sp_json(['success' => false, 'message' => 'Inhalt ist erforderlich'], 400);
 }
+$name = sp_text($data['name'] ?? '', SP_MAX_NAME);
 
-// Kommentare aus der Datei lesen
-$comments = json_decode(file_get_contents($commentsFile), true);
-
-// Neuen Kommentar erstellen
 $newComment = [
-    'id' => uniqid(),
-    'name' => !empty($data['name']) ? $data['name'] : 'anonym',
-    'content' => $data['content'],
-    'date' => date('c'),
-    'likes' => 0,
-    'liked' => false,
-    'replies' => []
+    'id'      => uniqid('', true),
+    'name'    => $name !== '' ? $name : 'anonym',
+    'content' => $content,
+    'date'    => date('c'),
+    'likes'   => 0,
+    'liked'   => false,
+    'replies' => [],
 ];
 
-// Kommentar am Anfang des Arrays hinzufügen
-array_unshift($comments, $newComment);
+// Kommentar am Anfang einfügen und die Gesamtzahl begrenzen
+$ok = sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($newComment) {
+    array_unshift($comments, $newComment);
+    $comments = array_slice($comments, 0, SP_MAX_COMMENTS);
+    return true;
+});
 
-// Rate-Limit aktualisieren
-$recentComments[] = $currentTime;
-$rateLimits[$userIp] = $recentComments;
+if ($ok === false) {
+    sp_json(['success' => false, 'message' => 'Kommentar konnte nicht gespeichert werden'], 500);
+}
 
-// Kommentare und Rate-Limits in die Dateien schreiben
-file_put_contents($commentsFile, json_encode($comments));
-file_put_contents($rateLimitFile, json_encode($rateLimits));
-
-// Erfolg und neuen Kommentar zurückgeben
-echo json_encode(['success' => true, 'comment' => $newComment]);
-?>
+sp_json(['success' => true, 'comment' => $newComment]);

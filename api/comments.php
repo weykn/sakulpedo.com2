@@ -1,28 +1,30 @@
 <?php
-header('Content-Type: application/json');
+require_once __DIR__ . '/lib.php';
 
-$commentsFile = '../data/comments.json';
-$likesFile    = '../data/likes.json';
-$userIp       = $_SERVER['REMOTE_ADDR'];
+sp_guard();
 
-if (!file_exists($commentsFile)) {
-    file_put_contents($commentsFile, json_encode([]));
-}
+$userIp    = sp_ip();
+$comments  = sp_read_json(SP_COMMENTS_FILE);
+$likesData = sp_read_json(SP_LIKES_FILE);
 
-$comments  = json_decode(file_get_contents($commentsFile), true) ?: [];
-$likesData = file_exists($likesFile)
-    ? (json_decode(file_get_contents($likesFile), true) ?: [])
-    : [];
+// Über den Index laufen: eine Referenz auf `$x['replies'] ?? []` würde ins
+// Leere schreiben, weil ?? einen Wert und keine Variable liefert.
+foreach ($comments as $ci => $comment) {
+    if (!is_array($comment)) { unset($comments[$ci]); continue; }
 
-foreach ($comments as &$comment) {
-    $id = $comment['id'];
-    $comment['userLiked'] = isset($likesData[$id]) && in_array($userIp, $likesData[$id]);
-    foreach ($comment['replies'] ?? [] as &$reply) {
-        $rid = $reply['id'];
-        $reply['userLiked'] = isset($likesData[$rid]) && in_array($userIp, $likesData[$rid]);
+    $id = $comment['id'] ?? '';
+    $comments[$ci]['userLiked'] = isset($likesData[$id]) && in_array($userIp, $likesData[$id], true);
+
+    if (!isset($comment['replies']) || !is_array($comment['replies'])) {
+        $comments[$ci]['replies'] = [];
+        continue;
     }
-    unset($reply);
+
+    foreach ($comment['replies'] as $ri => $reply) {
+        $rid = $reply['id'] ?? '';
+        $comments[$ci]['replies'][$ri]['userLiked'] =
+            isset($likesData[$rid]) && in_array($userIp, $likesData[$rid], true);
+    }
 }
 
-echo json_encode(array_values($comments));
-?>
+sp_json(array_values($comments));
