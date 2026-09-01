@@ -34,21 +34,44 @@ $newReply = [
     'likes'   => 0,
 ];
 
-$found = sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply) {
-    foreach ($comments as &$comment) {
-        if (($comment['id'] ?? '') === $commentId) {
-            $replies = isset($comment['replies']) && is_array($comment['replies']) ? $comment['replies'] : [];
-            array_unshift($replies, $newReply);
-            $comment['replies'] = array_slice($replies, 0, SP_MAX_REPLIES);
-            return true;
+// Datenmenge der einzelnen Antwort begrenzen
+if (sp_size($newReply) > SP_MAX_ENTRY_BYTES) {
+    sp_json(['success' => false, 'message' => 'Antwort ist zu groß'], 413);
+}
+
+$status = 'notfound';
+
+sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply, &$status) {
+    foreach ($comments as $ci => $comment) {
+        if (($comment['id'] ?? '') !== $commentId) { continue; }
+
+        $replies = isset($comment['replies']) && is_array($comment['replies']) ? $comment['replies'] : [];
+        array_unshift($replies, $newReply);
+        $replies = array_slice($replies, 0, SP_MAX_REPLIES);
+
+        // Gesamte Datenmenge des Kommentars samt Antworten begrenzen
+        $candidate = $comment;
+        $candidate['replies'] = $replies;
+        if (sp_size($candidate) > SP_MAX_COMMENT_BYTES) {
+            $status = 'full';
+            return false; // Datei bleibt unverändert
         }
+
+        $comments[$ci]['replies'] = $replies;
+        $status = 'ok';
+        return true;
     }
-    unset($comment);
 
     return false;
 });
 
-if ($found !== true) {
+if ($status === 'full') {
+    sp_json([
+        'success' => false,
+        'message' => 'Dieser Kommentar hat die maximale Datenmenge erreicht.',
+    ], 413);
+}
+if ($status !== 'ok') {
     sp_json(['success' => false, 'message' => 'Kommentar nicht gefunden'], 404);
 }
 

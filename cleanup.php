@@ -8,38 +8,62 @@ sp_boot();
 
 $removedComments = 0;
 $removedReplies  = 0;
+$trimmedComments = 0;
 
-sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use (&$removedComments, &$removedReplies) {
+/**
+ * Prüft einen gespeicherten Eintrag gegen dieselben Grenzen, die zur Laufzeit
+ * gelten. Gibt null zurück, wenn der Eintrag gelöscht werden muss.
+ */
+$check = function ($entry): ?array {
+    if (!is_array($entry)) { return null; }
+
+    // ID, Inhalt und Name müssen sauber und innerhalb der Grenzen sein.
+    if (!sp_is_clean_text($entry['id'] ?? null, 64))              { return null; }
+    if (!sp_is_clean_text($entry['content'] ?? null, SP_MAX_CONTENT)) { return null; }
+
+    $name = $entry['name'] ?? '';
+    if ($name === '' || $name === null) {
+        $entry['name'] = 'anonym';
+    } elseif (!sp_is_clean_text($name, SP_MAX_NAME)) {
+        return null;
+    }
+
+    $entry['likes'] = max(0, (int) ($entry['likes'] ?? 0));
+
+    // Datenmenge des einzelnen Eintrags (ohne Antworten)
+    if (sp_size(sp_entry_only($entry)) > SP_MAX_ENTRY_BYTES) { return null; }
+
+    return $entry;
+};
+
+sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($check, &$removedComments, &$removedReplies, &$trimmedComments) {
     $clean = [];
 
     foreach ($comments as $comment) {
-        if (!is_array($comment) || empty($comment['id']) || !isset($comment['content'])) {
-            $removedComments++;
-            continue;
-        }
-        if (!is_string($comment['content']) || mb_strlen($comment['content']) > SP_MAX_CONTENT) {
-            $removedComments++;
-            continue;
-        }
-
-        $comment['name'] = sp_text($comment['name'] ?? '', SP_MAX_NAME) ?: 'anonym';
+        $comment = $check($comment);
+        if ($comment === null) { $removedComments++; continue; }
 
         $replies = [];
         foreach ($comment['replies'] ?? [] as $reply) {
-            if (!is_array($reply) || empty($reply['id']) || !isset($reply['content'])) {
-                $removedReplies++;
-                continue;
-            }
-            if (!is_string($reply['content']) || mb_strlen($reply['content']) > SP_MAX_CONTENT) {
-                $removedReplies++;
-                continue;
-            }
-            $reply['name'] = sp_text($reply['name'] ?? '', SP_MAX_NAME) ?: 'anonym';
-            $replies[]     = $reply;
+            $reply = $check($reply);
+            if ($reply === null) { $removedReplies++; continue; }
+            $replies[] = $reply;
         }
 
-        $removedReplies   += max(0, count($replies) - SP_MAX_REPLIES);
+        $removedReplies    += max(0, count($replies) - SP_MAX_REPLIES);
         $comment['replies'] = array_slice($replies, 0, SP_MAX_REPLIES);
+
+        // Gesamte Datenmenge: älteste Antworten abschneiden, bis es passt.
+        $trimmed = false;
+        while (sp_size($comment) > SP_MAX_COMMENT_BYTES && $comment['replies']) {
+            array_pop($comment['replies']);
+            $removedReplies++;
+            $trimmed = true;
+        }
+        if ($trimmed) { $trimmedComments++; }
+
+        // Passt der Kommentar auch ohne Antworten nicht, fliegt er ganz raus.
+        if (sp_size($comment) > SP_MAX_COMMENT_BYTES) { $removedComments++; continue; }
 
         $clean[] = $comment;
     }
@@ -68,4 +92,5 @@ sp_update_json(SP_LIKES_FILE, function (array &$likes) use ($validIds) {
     return true;
 });
 
-echo "cleanup: {$removedComments} Kommentar(e), {$removedReplies} Antwort(en) entfernt\n";
+echo "cleanup: {$removedComments} Kommentar(e), {$removedReplies} Antwort(en) entfernt, "
+   . "{$trimmedComments} Kommentar(e) auf die maximale Datenmenge gekürzt\n";

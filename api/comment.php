@@ -36,6 +36,11 @@ $newComment = [
     'replies' => [],
 ];
 
+// Datenmenge des Eintrags begrenzen
+if (sp_size($newComment) > SP_MAX_ENTRY_BYTES) {
+    sp_json(['success' => false, 'message' => 'Kommentar ist zu groß'], 413);
+}
+
 // Kommentar am Anfang einfügen und die Gesamtzahl begrenzen
 $ok = sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($newComment) {
     array_unshift($comments, $newComment);

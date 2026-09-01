@@ -22,12 +22,19 @@ define('SP_WRITE_WINDOW',   60);
 define('SP_WRITE_MAX',      3);
 
 // Größenbegrenzungen, damit die Dateien nicht unbegrenzt wachsen
-define('SP_MAX_BODY',       8192);
+// Body großzügiger als der Inhalt selbst: 2000 Zeichen können als UTF-8 oder
+// mit \uXXXX-Escapes deutlich mehr Bytes belegen.
+define('SP_MAX_BODY',       32768);
 define('SP_MAX_CONTENT',    2000);
 define('SP_MAX_NAME',       60);
 define('SP_MAX_COMMENTS',   2000);
 define('SP_MAX_REPLIES',    200);
 define('SP_MAX_LIKE_IPS',   5000);
+
+// Datenmenge je Eintrag, als JSON gemessen: ein einzelner Kommentar bzw. eine
+// einzelne Antwort, und ein Kommentar samt allen seinen Antworten.
+define('SP_MAX_ENTRY_BYTES',   16384);
+define('SP_MAX_COMMENT_BYTES', 65536);
 
 // --------------------------------------------------------------------------
 // Grundlagen
@@ -79,8 +86,37 @@ function sp_body(): ?array
 function sp_text(?string $value, int $max): string
 {
     $value = trim((string) $value);
+    // Ungültiges UTF-8 verwerfen: json_encode könnte damit die ganze Datei
+    // nicht mehr schreiben.
+    if (!mb_check_encoding($value, 'UTF-8')) { return ''; }
+
     $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $value) ?? '';
     return mb_substr($value, 0, $max);
+}
+
+// Prüft bereits gespeicherten Text gegen dieselben Regeln wie sp_text – ohne
+// zu kürzen. Für das Aufräumen von Altbestand.
+function sp_is_clean_text($value, int $max): bool
+{
+    if (!is_string($value) || $value === '') { return false; }
+    if (!mb_check_encoding($value, 'UTF-8')) { return false; }
+    if (mb_strlen($value) > $max) { return false; }
+
+    return !preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', $value);
+}
+
+// Datenmenge eines Eintrags in Bytes, so wie er auf der Platte landet.
+function sp_size($value): int
+{
+    $encoded = json_encode($value, JSON_UNESCAPED_UNICODE);
+    return $encoded === false ? PHP_INT_MAX : strlen($encoded);
+}
+
+// Kommentar ohne seine Antworten – für die Prüfung des einzelnen Eintrags.
+function sp_entry_only(array $entry): array
+{
+    unset($entry['replies']);
+    return $entry;
 }
 
 // --------------------------------------------------------------------------
