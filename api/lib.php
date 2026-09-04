@@ -28,6 +28,7 @@ define('SP_WRITE_MAX',      2);
 // Duplikat-Erkennung: Ähnlichkeitsschwelle und Prüftiefe
 define('SP_DUP_CHECK_LIMIT', 150);   // wie viele Einträge auf Duplikate geprüft werden
 define('SP_DUP_SIMILARITY',  75);    // Mindest-Ähnlichkeit in Prozent
+define('SP_DUP_MIN_LENGTH',  25);    // ab dieser Länge zählt Ähnlichkeit statt Gleichheit
 
 // Größenbegrenzungen, damit die Dateien nicht unbegrenzt wachsen
 // Body großzügiger als der Inhalt selbst: 2000 Zeichen können als UTF-8 oder
@@ -74,6 +75,16 @@ function sp_ip(): string
     }
     $remote = $_SERVER['REMOTE_ADDR'] ?? '';
     return filter_var($remote, FILTER_VALIDATE_IP) ? $remote : '0.0.0.0';
+}
+
+// Schreibende Endpunkte nur über POST: sonst löst schon ein Prefetch oder ein
+// Crawler, der Links besucht, echte Likes aus.
+function sp_require_post(): void
+{
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        if (!headers_sent()) { header('Allow: POST'); }
+        sp_json(['success' => false, 'message' => 'Nur POST ist erlaubt'], 405);
+    }
 }
 
 function sp_json(array $payload, int $status = 200): void
@@ -342,8 +353,19 @@ function sp_guard(): void
 }
 
 // --------------------------------------------------------------------------
-// Schreib-Limit: 3 Kommentare/Antworten pro Minute und IP
+// Schreib-Limit: SP_WRITE_MAX Kommentare/Antworten je SP_WRITE_WINDOW und IP
 // --------------------------------------------------------------------------
+
+// Eine Quelle für den Text, damit die Meldung nicht von den Konstanten
+// abweichen kann, wenn dort jemand etwas ändert.
+function sp_write_limit_message(): string
+{
+    return sprintf(
+        'Rate-Limit überschritten. Es sind nur %d Beiträge pro %d Sekunden möglich.',
+        SP_WRITE_MAX,
+        SP_WRITE_WINDOW
+    );
+}
 
 function sp_check_write_limit(string $ip): bool
 {
@@ -391,26 +413,42 @@ function sp_similarity(string $a, string $b): float
 }
 
 /**
- * Checks whether $name+$content is a near-duplicate of any recent entry.
- * Call this inside a sp_update_json callback (the comments array is already locked).
+ * Vergleicht zwei bereits normalisierte Texte.
+ *
+ * Kurze Beiträge ("danke", "ja, stimmt") ähneln sich fast immer über 75 % –
+ * über die Ähnlichkeit gemessen wäre damit jede zweite normale Antwort ein
+ * Duplikat. Unterhalb von SP_DUP_MIN_LENGTH zählt deshalb nur die wortgleiche
+ * Wiederholung.
  */
-function sp_is_duplicate_in(array $comments, string $name, string $content): bool
+function sp_is_duplicate_text(string $a, string $b): bool
+{
+    if ($a === '' || $b === '') { return false; }
+    if ($a === $b) { return true; }
+    if (mb_strlen($a) < SP_DUP_MIN_LENGTH || mb_strlen($b) < SP_DUP_MIN_LENGTH) { return false; }
+
+    return sp_similarity($a, $b) >= SP_DUP_SIMILARITY;
+}
+
+/**
+ * Prüft, ob $content einen der letzten Einträge wiederholt.
+ *
+ * Verglichen wird nur der Inhalt. Ein zusätzlicher Vergleich über
+ * Name + Inhalt hat nichts gefunden, was der Inhalt nicht schon findet, dafür
+ * aber verschiedene Beiträge desselben Namens fälschlich als Duplikat gewertet.
+ *
+ * Aufruf gehört in einen sp_update_json-Callback (die Liste ist dann gesperrt).
+ */
+function sp_is_duplicate_in(array $comments, string $content): bool
 {
     $normContent = sp_normalize($content);
-    $normFull    = sp_normalize($name . ' ' . $content);
-    $checked     = 0;
+    if ($normContent === '') { return false; }
+    $checked = 0;
 
     foreach ($comments as $c) {
         if ($checked >= SP_DUP_CHECK_LIMIT) { break; }
         $checked++;
 
-        $cContent = sp_normalize((string)($c['content'] ?? ''));
-        if ($normContent !== '' && sp_similarity($normContent, $cContent) >= SP_DUP_SIMILARITY) {
-            return true;
-        }
-
-        $cFull = sp_normalize(($c['name'] ?? '') . ' ' . ($c['content'] ?? ''));
-        if (sp_similarity($normFull, $cFull) >= SP_DUP_SIMILARITY) {
+        if (sp_is_duplicate_text($normContent, sp_normalize((string)($c['content'] ?? '')))) {
             return true;
         }
 
@@ -419,8 +457,7 @@ function sp_is_duplicate_in(array $comments, string $name, string $content): boo
                 if ($checked >= SP_DUP_CHECK_LIMIT) { break 2; }
                 $checked++;
 
-                $rContent = sp_normalize((string)($r['content'] ?? ''));
-                if ($normContent !== '' && sp_similarity($normContent, $rContent) >= SP_DUP_SIMILARITY) {
+                if (sp_is_duplicate_text($normContent, sp_normalize((string)($r['content'] ?? '')))) {
                     return true;
                 }
             }

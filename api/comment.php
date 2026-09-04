@@ -2,16 +2,9 @@
 require_once __DIR__ . '/lib.php';
 
 sp_guard();
+sp_require_post();
 
 $userIp = sp_ip();
-
-// Schreib-Limit: maximal 3 Kommentare pro Minute
-if (!sp_check_write_limit($userIp)) {
-    sp_json([
-        'success' => false,
-        'message' => 'Rate-Limit überschritten. Es sind nur 3 Kommentare pro Minute möglich.',
-    ], 429);
-}
 
 // POST-Daten empfangen (Größe begrenzt)
 $data = sp_body();
@@ -32,7 +25,6 @@ $newComment = [
     'content' => $content,
     'date'    => date('c'),
     'likes'   => 0,
-    'liked'   => false,
     'ip'      => $userIp,
     'replies' => [],
 ];
@@ -42,10 +34,15 @@ if (sp_size($newComment) > SP_MAX_ENTRY_BYTES) {
     sp_json(['success' => false, 'message' => 'Kommentar ist zu groß'], 413);
 }
 
+// Schreib-Limit erst hier: eine abgelehnte Anfrage soll kein Kontingent kosten.
+if (!sp_check_write_limit($userIp)) {
+    sp_json(['success' => false, 'message' => sp_write_limit_message()], 429);
+}
+
 // Duplikat-Prüfung und Einfügen atomar unter der Schreibsperre
 $isDuplicate = false;
 $ok = sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($newComment, &$isDuplicate) {
-    if (sp_is_duplicate_in($comments, $newComment['name'], $newComment['content'])) {
+    if (sp_is_duplicate_in($comments, $newComment['content'])) {
         $isDuplicate = true;
         return false;
     }
@@ -63,4 +60,6 @@ if ($ok === false) {
     sp_json(['success' => false, 'message' => 'Kommentar konnte nicht gespeichert werden'], 500);
 }
 
+// Die IP bleibt serverseitig (für remove.php) und geht nicht mit hinaus.
+unset($newComment['ip']);
 sp_json(['success' => true, 'comment' => $newComment]);

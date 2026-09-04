@@ -74,6 +74,7 @@
   .btn:active{transform:translateY(0);box-shadow:var(--shadow-s)}
   .btn.accent{background:var(--accent);color:var(--accent-ink)}
   .btn.send{background:var(--accent);color:var(--accent-ink)}
+  .btn:disabled{opacity:.6;cursor:progress;transform:none;filter:none;box-shadow:var(--shadow-s)}
 
   /* ---------- reading progress ---------- */
   #progress{position:fixed;inset:0 auto auto 0;height:2px;width:0;z-index:120;background:linear-gradient(90deg,var(--accent),var(--flag));transition:width .1s linear}
@@ -175,6 +176,8 @@
   .act:active svg{transform:scale(.82)}
   .act.on{color:var(--accent);font-weight:600}
   .act.on svg{fill:color-mix(in srgb,var(--accent) 22%,transparent)}
+  .act:disabled{opacity:.55;cursor:progress}
+  .act:disabled:hover{color:var(--muted);background:none}
   .rb{margin-top:12px;padding:14px;background:var(--bg-2);border:1px solid var(--line-soft);border-radius:var(--r-m);display:none}
   .rb.open{display:block;animation:rise .28s cubic-bezier(.2,.8,.3,1) both}
   .rb .btn{width:100%}
@@ -266,9 +269,9 @@
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const esc=s=>String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-const ini=n=>esc(n.trim().slice(0,2).toUpperCase()||'??');
+const ini=n=>esc(String(n??'').trim().slice(0,2).toUpperCase()||'??');
 const hue=n=>{let h=0;for(const ch of String(n))h=(h*31+ch.charCodeAt(0))%360;return h;};
-const fmt=d=>{const s=Math.floor((Date.now()-new Date(d))/1000);if(s<60)return'gerade eben';if(s<3600){const m=Math.floor(s/60);return`vor ${m} Min.`;}if(s<86400){const h=Math.floor(s/3600);return`vor ${h} Std.`;}if(s<2592000){const dy=Math.floor(s/86400);return`vor ${dy} Tag${dy===1?'':'en'}`;}if(s<31536000){const mo=Math.floor(s/2592000);return`vor ${mo} Monat${mo===1?'':'en'}`;}const y=Math.floor(s/31536000);return`vor ${y} Jahr${y===1?'':'en'}`;};
+const fmt=d=>{const t=new Date(d).getTime();if(!isFinite(t))return'';const s=Math.floor((Date.now()-t)/1000);if(s<60)return'gerade eben';if(s<3600){const m=Math.floor(s/60);return`vor ${m} Min.`;}if(s<86400){const h=Math.floor(s/3600);return`vor ${h} Std.`;}if(s<2592000){const dy=Math.floor(s/86400);return`vor ${dy} Tag${dy===1?'':'en'}`;}if(s<31536000){const mo=Math.floor(s/2592000);return`vor ${mo} Monat${mo===1?'':'en'}`;}const y=Math.floor(s/31536000);return`vor ${y} Jahr${y===1?'':'en'}`;};
 const thumb='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 10v11M2 14v5a2 2 0 0 0 2 2h13.5a2 2 0 0 0 2-1.6l1.3-7A1.5 1.5 0 0 0 20.3 10H14V5a2 2 0 0 0-2-2l-3 7H2z"/></svg>';
 const arrow='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 9V5l-7 7 7 7v-4c5 0 8 1.5 10 5 0-7-3-11-10-11z"/></svg>';
 
@@ -347,65 +350,137 @@ async function loadContent(){
   buildToc();updateProgress();
 }
 
-const replyHTML=(r,parentId)=>`<div class="reply" data-id="${r.id}"><div class="top" style="margin-bottom:3px"><div class="ava" style="--h:${hue(r.name)};width:27px;height:27px;font-size:11px;border-radius:9px">${ini(r.name)}</div><div><div class="who">${esc(r.name)}</div><div class="when">${fmt(r.date)}</div></div></div><div class="text">${esc(r.content)}</div><div class="acts"><button class="act like ${isLiked(r.id)?'on':''}" data-id="${r.id}">${thumb}<span class="n">${r.likes||0}</span></button><button class="act reply-btn" data-id="${r.id}">${arrow}Antworten</button></div><div class="rb" id="rb-${r.id}"><div class="field"><label>Name</label><input class="r-name" placeholder="Anonym"></div><div class="field"><label>Antwort</label><textarea class="r-text" placeholder="Deine Antwort …"></textarea></div><button class="btn send" data-id="${parentId}" data-rb="${r.id}">Antwort absenden</button></div></div>`;
+/* ---------- rendering ----------
+   Achtung: die IDs vom Server (uniqid) enthalten einen Punkt. Sie dürfen
+   deshalb nie in einen CSS-Selektor wandern (`#rb-6a98….2049…` liest der
+   Browser als Klasse und wirft einen Fehler). Alles Nötige wird über
+   closest()/:scope gefunden, IDs stehen nur in Attributwerten. */
+const rbHTML=id=>`<div class="rb">
+    <div class="field"><label for="rn-${esc(id)}">Name</label><input id="rn-${esc(id)}" class="r-name" autocomplete="name" placeholder="Anonym"></div>
+    <div class="field"><label for="rt-${esc(id)}">Antwort</label><textarea id="rt-${esc(id)}" class="r-text" placeholder="Deine Antwort …"></textarea></div>
+    <button class="btn send" type="button">Antwort absenden</button>
+  </div>`;
 
-const cmtHTML=c=>`<div class="cmt" data-id="${c.id}">
+const actsHTML=e=>`<div class="acts">
+    <button class="act like ${isLiked(e.id)?'on':''}" type="button" data-id="${esc(e.id)}" aria-pressed="${isLiked(e.id)}">${thumb}<span class="n">${e.likes||0}</span></button>
+    <button class="act reply-btn" type="button">${arrow}Antworten</button>
+  </div>`;
+
+const replyHTML=r=>`<div class="reply" data-id="${esc(r.id)}">
+  <div class="top" style="margin-bottom:3px"><div class="ava" style="--h:${hue(r.name)};width:27px;height:27px;font-size:11px;border-radius:9px">${ini(r.name)}</div><div><div class="who">${esc(r.name)}</div><div class="when">${fmt(r.date)}</div></div></div>
+  <div class="text">${esc(r.content)}</div>
+  ${actsHTML(r)}
+  ${rbHTML(r.id)}
+</div>`;
+
+const cmtHTML=c=>`<div class="cmt" data-id="${esc(c.id)}">
   <div class="top"><div class="ava" style="--h:${hue(c.name)}">${ini(c.name)}</div><div><div class="who">${esc(c.name)}</div><div class="when">${fmt(c.date)}</div></div></div>
   <div class="text">${esc(c.content)}</div>
-  <div class="acts">
-    <button class="act like ${isLiked(c.id)?'on':''}" data-id="${c.id}">${thumb}<span class="n">${c.likes||0}</span></button>
-    <button class="act reply-btn" data-id="${c.id}">${arrow}Antworten</button>
-  </div>
-  <div class="rb" id="rb-${c.id}">
-    <div class="field"><label>Name</label><input class="r-name" placeholder="Anonym"></div>
-    <div class="field"><label>Antwort</label><textarea class="r-text" placeholder="Deine Antwort …"></textarea></div>
-    <button class="btn send" data-id="${c.id}" data-rb="${c.id}">Antwort absenden</button>
-  </div>
-  <div class="replies">${(c.replies||[]).map(r=>replyHTML(r,c.id)).join('')}</div>
+  ${actsHTML(c)}
+  ${rbHTML(c.id)}
+  <div class="replies">${(c.replies||[]).map(replyHTML).join('')}</div>
 </div>`;
+
+/* Eine Anfrage, ein Fehlerweg: liefert die Daten oder wirft mit der Meldung
+   des Servers (Rate-Limit, Duplikat, …), damit der Toast sie zeigen kann. */
+async function api(url,opts){
+  let res,data;
+  try{ res=await fetch(url,opts); }
+  catch(e){ throw new Error('Keine Verbindung zum Server'); }
+  try{ data=await res.json(); }
+  catch(e){ throw new Error('Unerwartete Antwort vom Server'); }
+  if(!res.ok||(data&&data.success===false))throw new Error((data&&data.message)||'Die Anfrage ist fehlgeschlagen');
+  return data;
+}
+
+let total=0;
+const setCount=n=>{total=Math.max(0,n);$('#count').textContent=total?`(${total})`:'';};
 
 async function loadComments(){
   try{
-    const c=await(await fetch('api/comments.php')).json();
-    syncLikes(c);
-    $('#count').textContent=c.length?`(${c.length})`:'';
-    $('#list').innerHTML=c.length?c.map(cmtHTML).join(''):'<p class="empty">Noch keine Kommentare. Sei der Erste!</p>';
-  }catch(e){ $('#list').innerHTML='<p class="empty">Fehler beim Laden der Kommentare.</p>'; }
+    const data=await api('api/comments.php',{cache:'no-store'});
+    if(!Array.isArray(data))throw new Error('Unerwartete Antwort vom Server');
+    syncLikes(data);
+    $('#list').innerHTML=data.length?data.map(cmtHTML).join(''):'<p class="empty">Noch keine Kommentare. Sei der Erste!</p>';
+    setCount(data.length);
+  }catch(e){
+    $('#list').innerHTML=`<p class="empty">${esc(e.message||'Fehler beim Laden der Kommentare.')}</p>`;
+    setCount(0);
+  }
 }
 
-$('#list').addEventListener('click',async e=>{
+$('#list').addEventListener('click',e=>{
   const like=e.target.closest('.like'); if(like)return doLike(like);
+
   const rep=e.target.closest('.reply-btn');
-  if(rep){const b=$('#rb-'+rep.dataset.id);$$('.rb.open').forEach(x=>x!==b&&x.classList.remove('open'));b.classList.toggle('open');return;}
+  if(rep){
+    // Antwort-Feld des Kommentars *oder* der Antwort, in der der Knopf steckt.
+    const host=rep.closest('.reply')||rep.closest('.cmt');
+    const box=host&&host.querySelector(':scope > .rb');
+    if(!box)return;
+    const open=!box.classList.contains('open');
+    $$('.rb.open').forEach(x=>x.classList.remove('open'));
+    box.classList.toggle('open',open);
+    if(open)box.querySelector('.r-text').focus();
+    return;
+  }
+
   const send=e.target.closest('.send'); if(send)return doReply(send);
 });
 
 async function doLike(btn){
+  if(btn.disabled)return;
   const id=btn.dataset.id;
-  try{const r=await(await fetch('api/like.php?id='+id,{method:'POST'})).json();
-    if(r.success){btn.classList.toggle('on',r.liked);btn.querySelector('.n').textContent=r.likes;setLiked(id,r.liked);}
-    else toast(r.message||'Fehler beim Liken',1);
-  }catch(e){toast('Fehler beim Liken des Kommentars',1);}
+  btn.disabled=true;
+  try{
+    const r=await api('api/like.php?id='+encodeURIComponent(id),{method:'POST'});
+    btn.classList.toggle('on',r.liked);
+    btn.setAttribute('aria-pressed',String(!!r.liked));
+    btn.querySelector('.n').textContent=r.likes;
+    setLiked(id,r.liked);
+  }catch(e){toast(e.message,1);}
+  finally{btn.disabled=false;}
 }
 
 async function doReply(btn){
-  const id=btn.dataset.id, rbId=btn.dataset.rb, box=$('#rb-'+rbId);
-  const name=box.querySelector('.r-name').value.trim(), content=box.querySelector('.r-text').value.trim();
-  if(!content)return toast('Bitte fülle alle Felder aus',1);
-  try{const r=await(await fetch('api/reply.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({commentId:id,name,content})})).json();
-    if(r.success){$(`.cmt[data-id="${id}"] .replies`).insertAdjacentHTML('beforeend',replyHTML(r.reply,id));box.classList.remove('open');box.querySelector('.r-name').value='';box.querySelector('.r-text').value='';toast('Antwort erfolgreich hinzugefügt');}
-    else toast(r.message||'Fehler beim Hinzufügen der Antwort',1);
-  }catch(e){toast('Fehler beim Hinzufügen der Antwort',1);}
+  const box=btn.closest('.rb'), cmt=btn.closest('.cmt');
+  if(!box||!cmt||btn.disabled)return;
+  const nameEl=box.querySelector('.r-name'), textEl=box.querySelector('.r-text');
+  const content=textEl.value.trim();
+  if(!content){textEl.focus();return toast('Bitte schreibe eine Antwort',1);}
+
+  btn.disabled=true;
+  try{
+    // Antworten hängen immer am obersten Kommentar – auch die auf eine Antwort.
+    const r=await api('api/reply.php',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({commentId:cmt.dataset.id,name:nameEl.value.trim(),content})});
+    // Der Server stellt neue Antworten nach vorn – hier genauso, sonst
+    // springt die Reihenfolge beim nächsten Laden.
+    cmt.querySelector(':scope > .replies').insertAdjacentHTML('afterbegin',replyHTML(r.reply));
+    box.classList.remove('open');nameEl.value='';textEl.value='';
+    toast('Antwort erfolgreich hinzugefügt');
+  }catch(e){toast(e.message,1);}
+  finally{btn.disabled=false;}
 }
 
 $('#cmtForm').addEventListener('submit',async e=>{
   e.preventDefault();
-  const name=$('#name').value.trim(), content=$('#comment').value.trim();
-  if(!content)return toast('Bitte fülle alle Felder aus',1);
-  try{const r=await(await fetch('api/comment.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,content})})).json();
-    if(r.success){const em=$('#list .empty');em&&em.remove();$('#list').insertAdjacentHTML('afterbegin',cmtHTML(r.comment));$('#name').value='';$('#comment').value='';toast('Kommentar erfolgreich hinzugefügt');}
-    else toast(r.message||'Fehler beim Hinzufügen des Kommentars',1);
-  }catch(e){toast('Fehler beim Hinzufügen des Kommentars',1);}
+  const btn=e.target.querySelector('button[type="submit"]');
+  if(btn.disabled)return;
+  const content=$('#comment').value.trim();
+  if(!content){$('#comment').focus();return toast('Bitte schreibe einen Kommentar',1);}
+
+  btn.disabled=true;
+  try{
+    const r=await api('api/comment.php',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:$('#name').value.trim(),content})});
+    const em=$('#list .empty');em&&em.remove();
+    $('#list').insertAdjacentHTML('afterbegin',cmtHTML(r.comment));
+    $('#name').value='';$('#comment').value='';
+    setCount(total+1);
+    toast('Kommentar erfolgreich hinzugefügt');
+  }catch(e){toast(e.message,1);}
+  finally{btn.disabled=false;}
 });
 
 loadContent(); loadComments();

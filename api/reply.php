@@ -2,16 +2,9 @@
 require_once __DIR__ . '/lib.php';
 
 sp_guard();
+sp_require_post();
 
 $userIp = sp_ip();
-
-// Schreib-Limit: Antworten zählen zu denselben 3 Beiträgen pro Minute
-if (!sp_check_write_limit($userIp)) {
-    sp_json([
-        'success' => false,
-        'message' => 'Rate-Limit überschritten. Es sind nur 3 Beiträge pro Minute möglich.',
-    ], 429);
-}
 
 $data = sp_body();
 if ($data === null) {
@@ -40,11 +33,17 @@ if (sp_size($newReply) > SP_MAX_ENTRY_BYTES) {
     sp_json(['success' => false, 'message' => 'Antwort ist zu groß'], 413);
 }
 
+// Schreib-Limit: Antworten zählen zu denselben Beiträgen wie Kommentare.
+// Erst hier, damit eine abgelehnte Anfrage kein Kontingent kostet.
+if (!sp_check_write_limit($userIp)) {
+    sp_json(['success' => false, 'message' => sp_write_limit_message()], 429);
+}
+
 $status = 'notfound';
 
-sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply, $userIp, &$status) {
+sp_update_json(SP_COMMENTS_FILE, function (array &$comments) use ($commentId, $newReply, &$status) {
     // Duplikat-Prüfung über alle Kommentare und Antworten
-    if (sp_is_duplicate_in($comments, $newReply['name'], $newReply['content'])) {
+    if (sp_is_duplicate_in($comments, $newReply['content'])) {
         $status = 'duplicate';
         return false;
     }
@@ -88,4 +87,6 @@ if ($status !== 'ok') {
     sp_json(['success' => false, 'message' => 'Kommentar nicht gefunden'], 404);
 }
 
+// Die IP bleibt serverseitig (für remove.php) und geht nicht mit hinaus.
+unset($newReply['ip']);
 sp_json(['success' => true, 'reply' => $newReply]);
